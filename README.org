@@ -1,0 +1,3 @@
+#+title: Brine Shrimp Simulator
+
+A gag game for learning about OpenGL, SDL2, CEPL, Common Lisp, game development, and more.
