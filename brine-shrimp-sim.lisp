@@ -1,53 +1,78 @@
-;;;; brine-shrimp-sim.lisp
+(in-package :brine-shrimp-sim)
 
-(in-package #:brine-shrimp-sim)
-
-;; Moving triangles example.
-
+(defparameter *gpu-verts-array* nil)
+(defparameter *gpu-index-array* nil)
 (defparameter *vertex-stream* nil)
-(defparameter *array* nil)
-(defparameter *loop* 0.0)
+(defparameter *viewport* nil)
+(defparameter *tex* nil)
+(defparameter *sampler* nil)
+(defparameter *fbo* nil)
+(defparameter *fbo-tex* nil)
+(defparameter *fbo-tex-sampler* nil)
+
+(defstruct-g our-vert
+  (pos :vec2)
+  (uv :vec2)) ;; texture coordinates
 
 ;; note the use of implicit uniform capture with *loop*
 ;; special vars in scope can be used inline. During compilation
 ;; cepl will try work out the type. It does this by seeing if the
 ;; symbol is bound to a value, and if it is it checks the type of
 ;; the value for a suitable matching varjo type
-(defun-g calc-pos ((v-pos :vec4) (id :float))
-  (let ((pos (v! (* (s~ v-pos :xyz) 0.3) 1.0)))
-    (+ pos (let ((i (/ (+ (float id)) 3)))
-             (v! (sin (+ i *loop*))
-                 (cos (* 5 (+ (tan i) *loop*)))
-                 0.0 0.0)))))
+(defun-g calc-pos ((v our-vert))
+  (values (v! (our-vert-pos v) 0.0 1.0)
+          ;; Second value is passed onto next stage.
+          (our-vert-uv v)))
+
+(defun-g frag-shader ((uv :vec2)
+                      &uniform (sam :sampler-2d))
+  (texture sam uv))
 
 ;; Also showing that we can use gpu-lambdas inline in defpipeline-g
 ;; It's not usually done as reusable functions are generally nicer
 ;; but I wanted to show that it was possible :)
 (defpipeline-g prog-1 ()
-  (lambda-g ((position :vec4) &uniform (i :float))
-    (calc-pos position i))
-  (lambda-g ()
-    (v! (cos *loop*) (sin *loop*) 0.4 1.0)))
+  (calc-pos our-vert)
+  (frag-shader :vec2))
 
-(defun step-demo ()
-  (step-host)
-  (update-repl-link)
-  (setf *loop* (+ 0.004 *loop*))
-  (clear)
-  (loop :for i :below 60 :do
-     (let ((i (/ i 2.0)))
-       (map-g #'prog-1 *vertex-stream* :i i)))
-  (swap))
+(defun init ()
+  (when *gpu-verts-array*
+    (free *gpu-verts-array*))
 
-(let ((running nil))
-  (defun run-loop ()
-    (setf running t)
-    (setf *array* (make-gpu-array (list (v!  0.0   0.2  0.0  1.0)
-                                        (v! -0.2  -0.2  0.0  1.0)
-                                        (v!  0.2  -0.2  0.0  1.0))
-                                  :element-type :vec4
-                                  :dimensions 3))
-    (setf *vertex-stream* (make-buffer-stream *array*))
-    (loop :while (and running (not (shutting-down-p))) :do
-       (continuable (step-demo))))
-  (defun stop-loop () (setf running nil)))
+  (when *gpu-index-array*
+    (free *gpu-index-array*))
+
+  (setf *gpu-verts-array*
+        (make-gpu-array
+         (list (list (vec2 -0.5  0.5) (vec2 0.0 0.0))
+               (list (vec2 -0.9 -0.9) (vec2 0.0 1.0))
+               (list (vec2  0.5 -0.5) (vec2 1.0 1.0))
+               (list (vec2  0.9  0.9) (vec2 1.0 0.0)))
+         :element-type 'our-vert))
+
+  (setf *gpu-index-array*
+        (make-gpu-array
+         (list 0 1 2 0 2 3)
+         :element-type :uint))
+
+  (setf *vertex-stream*
+        (make-buffer-stream *gpu-verts-array*
+                            :index-array *gpu-index-array*))
+
+  (setf *viewport* (make-viewport '(400 400)))
+
+  (setf *tex* (dirt:load-image-to-texture "./images/baggers.png"))
+
+  (setf *sampler* (sample *tex*))
+
+  (setf *fbo* (with-viewport *viewport*
+                (make-fbo 0)))
+
+  (setf *fbo-tex* (gpu-array-texture (attachment *fbo* 0))))
+
+(defun draw! ()
+  (with-viewport *viewport*
+    (clear)
+    (map-g #'prog-1 *vertex-stream*
+           :sam *sampler*)
+    (swap)))

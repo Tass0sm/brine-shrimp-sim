@@ -10,6 +10,7 @@
                #:rtg-math #:rtg-math.vari
                #:dendrite #:skitter #:cepl.skitter.sdl2
                #:livesupport #:classimp #:split-sequence
-               #:dirt #:temporal-functions #:with-setf)
+               #:dirt #:temporal-functions #:with-setf
+               #:nineveh)
   :components ((:file "package")
                (:file "brine-shrimp-sim")))

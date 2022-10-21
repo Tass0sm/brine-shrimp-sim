@@ -25,7 +25,8 @@
           sbcl-real-rtg-math
           sbcl-dendrite sbcl-skitter sbcl-cepl.skitter.sdl2
           sbcl-livesupport sbcl-classimp sbcl-split-sequence
-          sbcl-dirt sbcl-temporal-functions sbcl-with-setf))
+          sbcl-dirt sbcl-temporal-functions sbcl-with-setf
+          sbcl-nineveh))
    (home-page "")
    (synopsis "")
    (description "")
