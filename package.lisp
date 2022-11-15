@@ -5,4 +5,5 @@
         #:rtg-math #:vari #:livesupport
         #:cepl.skitter
         #:temporal-functions
-        #:rtg-math #:with-setf))
+        #:rtg-math #:with-setf)
+  (:export #:main))

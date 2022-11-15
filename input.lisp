@@ -6,6 +6,11 @@
 (defparameter *albedo-sampler* nil)
 (defparameter *specular-sampler* nil)
 
+(defparameter *fps* 1.0)
+(defparameter *fps-wip* 1.0)
+(defparameter *stepper* (make-stepper (seconds 1)))
+(defparameter *delta* 1.0)
+
 (defclass camera ()
   ((pos :initform (v! 0 0 0) :accessor pos)
    (rot :initform (q:identity) :accessor rot)))
@@ -15,6 +20,9 @@
    (rot :initform (q:identity) :accessor rot)))
 
 (defparameter *camera* (make-instance 'camera))
+
+(setf (rot *camera*) (q:from-axis-angle (v! 1 0 0)
+                                        (radians 0)))
 
 (defparameter *things* (loop for i below 40 collect
                                             (make-instance 'camera)))
@@ -92,22 +100,61 @@
   (/ (float (get-internal-real-time))
      1000000))
 
-(defun get-world->view-space ()
-  ;; Create transform+rotation matrix from v3 pos and quaternion rot
-  (m4:* (m4:translation (v3:negate (pos *camera*)))
-        (q:to-mat4 (q:inverse (rot *camera*)))))
-
 (defun get-model->world-space (thing)
   (m4:* (m4:translation (pos thing))
         (q:to-mat4 (rot thing))))
 
 (defun update-thing (thing)
-  (with-slots (pos) thing
-    (setf (y pos)
-          (mod (- (y pos) (* 0.0001 (now))) 40f0))))
+  (with-slots (rot) thing
+    (setf rot
+          (q:from-fixed-angles-v3 (v! (sin (* (now) 2))
+                                      (cos (* (now) 2))
+                                      0)))))
+
+(defun get-world->view-space ()
+  ;; Create transform+rotation matrix from v3 pos and quaternion rot
+  (m4:* (q:to-mat4 (q:inverse (rot *camera*)))
+        (m4:translation (v3:negate (pos *camera*)))))
+
+(defun update-camera (camera)
+  (when (keyboard-button (keyboard) key.w)
+    (v3:incf (pos camera)
+             (v3:*s (q:to-direction (rot camera))
+                    *delta*)))
+
+  (when (keyboard-button (keyboard) key.s)
+    (v3:decf (pos camera)
+             (v3:*s (q:to-direction (rot camera))
+                    *delta*)))
+
+  (when (mouse-button (mouse) mouse.left)
+    (let* ((move (v2:*s (mouse-move (mouse))
+                        0.01)))
+      (setf (rot camera)
+            (q:normalize
+             (q:* (rot camera)
+                  (q:normalize
+                   (q:* (q:from-axis-angle (v! 1 0 0) (- (y move)))
+                        (q:from-axis-angle (v! 0 1 0) (- (x move)))))))))))
+
+;; alternative:
+;; (when (mouse-button (mouse) mouse.left)
+;;   (let* ((res (surface-resolution (current-surface)))
+;;          (mpos (mouse-pos (mouse)))
+;;          (mpos (v2:- (v2:*s (v2:/ mpos res) 2.0) (v! 1 1))))
+;;     (setf (rot camera)
+;;           (q:from-fixed-angles-v3 (v! (- (y mpos)) (- (x mpos)) 0)))))
 
 (defun draw! ()
+  (incf *fps-wip*)
+  (when (funcall *stepper*) ;; its true once every second
+    (setf *fps* *fps-wip*
+          *fps-wip* 0))
+  (setf *delta (/ 1.0 *fps*))
+
   (step-host)
+
+  (update-camera *camera*)
 
   (setf (resolution (current-viewport))
         (surface-resolution (current-surface)))
@@ -115,14 +162,12 @@
   (setf *light-pos* (v! (* 10 (sin (now)))
                         (* (sin (now)) (sin (* 2.7 (now))))
                         (+ (* 10 (cos (now))) -15)))
-  (setf (pos *camera*) (v! 1 15 -1))
-  (setf (rot *camera*) (q:from-axis-angle (v! 1 0 0)
-                                          (radians 0)))
+  ;; (setf (pos *camera*) (v! 1 15 -1))
 
   (clear)
 
   (loop :for thing :in *things* :do
-    ;; (update-thing thing)
+    (update-thing thing)
     (map-g #'cube-pipeline *buf-stream*
            :now (now)
            :light-pos *light-pos*
@@ -137,7 +182,8 @@
                         60f0)
            :albedo *albedo-sampler*
            :spec-map *specular-sampler*))
-  (swap))
+  (swap)
+  (decay-events))
 
 (defun init ()
   (loop :for thing :in *things* :do
@@ -149,7 +195,7 @@
 
   (unless *buf-stream*
     (destructuring-bind (vert index)
-        (nineveh.mesh.data.primitives:sphere-gpu-arrays)
+        (nineveh.mesh.data.primitives:cube-gpu-arrays)
       (setf *buf-stream*
             (make-buffer-stream vert :index-array index)))
 
