@@ -11,6 +11,6 @@
                #:dendrite #:skitter #:cepl.skitter.sdl2
                #:livesupport #:classimp #:split-sequence
                #:dirt #:temporal-functions #:with-setf
-               #:nineveh)
+               #:nineveh #:qua)
   :components ((:file "package")
                (:file "brine-shrimp-sim")))

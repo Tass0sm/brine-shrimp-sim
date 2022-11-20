@@ -26,7 +26,7 @@
           sbcl-dendrite sbcl-skitter sbcl-cepl.skitter.sdl2
           sbcl-livesupport sbcl-classimp sbcl-split-sequence
           sbcl-dirt sbcl-temporal-functions sbcl-with-setf
-          sbcl-nineveh))
+          sbcl-nineveh sbcl-qua))
    (home-page "")
    (synopsis "")
    (description "")
